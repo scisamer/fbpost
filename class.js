@@ -119,7 +119,10 @@ class user {
 						console.log('found new post !');
 						console.log('working in comment ...');
 						// console.log(data[i].message);
-						var mess = self.mess.replace(/<post>/gi, data[i].message + '').replace(/<n>/g, '\n');
+						var alltext = self.mess.replace(/<post>/gi, data[i].message + '').replace(/<n>/g, '\n');
+						var array = alltext.split("<!sk>");
+
+						var mess = array[Math.floor(Math.random() * array.length)];
 
 
 
