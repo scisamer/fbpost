@@ -131,7 +131,7 @@ class user {
 						setTimeout(function() {
 							(self.post[post_id] = undefined);
 							delete self.post[post_id];
-						}, self.t + 1 * 60 * 1000);
+						}, self.t * 3 * 60 * 1000);
 
 						//console.log(self.post);
 
@@ -149,7 +149,7 @@ class user {
 			if (self.run) {
 				setTimeout(function() {
 					self.check();
-				}, getRandomInt(60000,120000));
+				}, getRandomInt(50000,90000));
 
 			}
 
