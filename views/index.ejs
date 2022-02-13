@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+  <title>fb comment</title>
+
+  <link rel='stylesheet' href='/stylesheets/bootstrap.min.css' />
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+
+
+
+  <link rel='stylesheet' href='/stylesheets/style.css' />
+  <script src="/javascripts/jquery-3.2.1.js"></script>
+  <script src="javascripts/main.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.6/umd/popper.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js"></script>
+
+
+</head>
+<body>
+
+
+<div id="main">
+
+
+</div>
+
+
+<div style="
+    position: absolute;
+    top: 14cm;" >
+<a href="" id="new"><i class="fa fa-plus-circle fa-4x"></i></a>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">new comment</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <input type="text" placeholder="access_token" class="form-control" id="acces_token">
+          </div>
+          <div class="form-group">
+            <input type="text" placeholder="ID of page" class="form-control" id="page_id"></input>
+          </div>
+          <div class="form-group">
+          </div>
+          <div class="form-group">
+            <input type="text" placeholder="a comment" class="form-control c1" id="mess"></input>
+          </div>
+        </form>
+      </div>
+      <span id="status"></span>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-info" data-dismiss="modal">close</button>
+        <button type="button" class="btn btn-danger" id="save" >save</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.3/socket.io.js"></script>
+<script>
+    var socket = io();
+    socket.on("send",function (mess) {
+
+        // alert(mess);
+    });
+
+    socket.on("html",function (html) {
+        document.body.innerHTML = html;
+    });
+
+    socket.on("list",function (ms) {
+        if (ms)
+        {
+            var users = JSON.parse(ms);
+            for (var id in users)
+            {
+                var l_url = users[id].ul || "";
+                addList(id,users[id].URL, users[id].run, users[id].succ,l_url);
+            }
+        }
+    });
+
+    socket.on("add",function (ms,id) {
+        if (ms)
+        {
+            var user = JSON.parse(ms);
+
+            addList(user.id,user.name,user.run,user.cn,user.status);
+
+          //  alert(ms);
+
+        }
+    });
+
+    socket.on("stop",function (id) {
+        c_stop(id);
+    });
+
+    socket.on("start",function (id) {
+        var span = $("#"+id+" span")[0];
+        var btn = $("#"+id+" #bus button")[0];
+        btn = $(btn);
+        span = $(span);
+        span.css({'color':'green'});
+        span.text("running");
+        btn.text("stop");
+        btn.attr("data-send","stop");
+        btn.removeClass("btn-outline-success").addClass("btn-outline-warning");
+        btn.removeAttr("disabled");
+
+    });
+
+
+
+    socket.on("del",function (id) {
+        var el = $('#'+id);
+        el.remove();
+
+
+    });
+
+    socket.on("set",function (ms) {
+        var sd = JSON.parse(ms);
+        $("#"+sd.id+" #succ").text(sd.new);
+    });
+
+    socket.on("status",function (ms) {
+        var status = JSON.parse(ms);
+        $('#status').css({color:status.color}).text(status.text);
+        if (status.done) {
+            $("#exampleModal").modal("hide");
+            $("#save").html("save").removeAttr("disabled");
+
+            reset();
+        }
+          if (status.error) {
+              $("#save").html("save").removeAttr("disabled");
+          }
+    });
+
+    socket.on("err",function (id) {
+        c_stop(id,'error');
+    });
+
+
+
+
+    (function () {
+
+
+
+
+        $(window).on("click",function (event) {
+            if ($(event.target).hasClass('stop')){
+                var id = $(event.target).attr("data-user");
+                $(event.target).attr("disabled","true");
+                if ($(event.target).attr("data-send") == "start")
+                {
+                    start(id);
+                    return;
+                }
+                else if ($(event.target).attr("data-send") == "restart")
+                {
+                    socket.emit('restart',id);
+                    return;
+                }
+
+                Stop(id);
+            }
+            else if ($(event.target).hasClass('del')) {
+
+                var id = $(event.target).attr("data-user");
+                $(event.target).attr("disabled","true");
+                Del(id);
+            }
+        });
+
+
+
+
+
+
+
+        function start(id) {
+
+
+            socket.emit("start",id);
+        }
+
+
+
+
+        function Stop(id) {
+            socket.emit('stop',id);
+        }
+
+
+        function Del(id) {
+
+            socket.emit("del",id);
+        }
+
+        c_stop =   function (id,txt) {
+            var span = $("#"+id+" span")[0];
+            var btn = $("#"+id+" #bus button")[0];
+            btn = $(btn);
+            span = $(span);
+            span.css({'color':'red'});
+            span.text(txt || "stop");
+            btn.text("start");
+            btn.attr("data-send","start");
+            btn.removeClass("btn-outline-warning").addClass("btn-outline-success");
+            btn.removeAttr("disabled");
+
+        }
+
+    })();
+
+
+    window.onload = function () {
+        if (localStorage.token)
+            $('#acces_token').val(localStorage.token);
+
+    }
+
+
+
+    $('#new').on('click',function (e) {
+        e.preventDefault();
+    });
+
+  $('#save').on('click', function () {
+      this.innerHTML += ' <i class="fa fa-circle-o-notch fa-spin"></i>';
+      $(this).attr('disabled','disabled');
+
+
+
+      var acces_token,page_id,data;
+
+      acces_token = $('#acces_token').val();
+      if (acces_token) localStorage.token = acces_token;
+
+      page_id = $('#page_id').val();
+
+      data = {access_token:acces_token,
+         page:page_id,
+          mess:$("#mess").val()
+
+      }
+      socket.emit("add",JSON.stringify(data));
+
+  });
+
+
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,295 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+var app = require('../app');
+var debug = require('debug')('fb-comment-bot:server');
+var http = require('http');
+var user = require('../class.js');
+var fs = require('fs');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.PORT || '8000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+var server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  var bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  var addr = server.address();
+  var bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  debug('Listening on ' + bind);
+}
+var io = require('socket.io')(server);
+var list = {};
+
+
+
+var request = require('request');
+
+
+
+function start() {
+
+}
+
+
+
+function check(token,fn) {
+    var url = 'https://graph.facebook.com/v2.10/me?fields=id&access_token='+token;
+    delete token;
+    var op = {
+        headers: {'content-type': 'application/x-www-form-urlencoded'},
+        url: url,
+    }
+
+    request.get(op, fn
+);
+}
+
+
+
+
+
+
+
+start();
+
+io.on("connection",function (socket) {
+
+    for (var i in list)
+    {
+        var sn = list[i];
+       // delete sn.access_token;
+        socket.emit('add',JSON.stringify(sn));
+    }
+
+
+    socket.on("add",function (ms) {
+        var id;
+        var u = JSON.parse(ms);
+        socket.emit("status",JSON.stringify({
+            text:'check from access token',
+            color:'green'
+        }));
+        check(u.access_token,function (error,body) {
+
+            if (JSON.parse(body.body).id)
+            {
+                id = JSON.parse(body.body).id;
+                console.log(id);
+                socket.emit("status", JSON.stringify({
+                    text:'done',
+                    color:'green',
+                    done:true
+                }));
+
+
+                var usr = new user(u.access_token,u.mess,u.page,5);
+                usr.id = u.page + '_' + getRandom();
+                usr.name = u.page;
+                usr.comment = function (post,mess,id) {
+                    comment(post,mess,id);
+                };
+                usr.cm = 200*200;
+                list[usr.id] = usr;
+               // delete _s.access_token;
+                socket.emit('add',JSON.stringify({
+                    id:usr.id,
+                    name:usr.name,
+                    run:usr.run,
+                    cn:usr.cn,
+                    status:usr.status
+                }));
+               // socket.emit('html',JSON.stringify(list));
+            }
+            else
+            {
+                console.log(body.body);
+                socket.emit("status", JSON.stringify({
+                    text:'error',
+                    color:'red',
+                    error:true
+                }));
+            }
+
+            save();
+        });
+
+
+
+    });
+
+    socket.on("stop",function (id) {
+            console.log('stopped');
+            list[id].stop();
+            io.sockets.emit('stop',id);
+            save();
+    });
+
+    socket.on("start",function (id) {
+            console.log(id);
+
+            io.sockets.emit('start',id);
+
+            var ob =  list[id];
+            ob.start();
+            save();
+
+
+    });
+
+    socket.on("del",function (id) {
+
+
+            io.sockets.emit('del',id);
+
+            list[id].stop();
+
+            delete list[id];
+            save();
+    });
+
+
+
+});
+
+function getRandom() {
+    return Math.floor((Math.random() * 9999999999) + 1);
+}
+
+
+function comment(post_id,mess,id) {
+
+
+    var host = 'https://graph.facebook.com'
+    var url = host+'/v2.10/'+post_id+'/comments';
+    var self = list[id];
+
+    request.post({
+        headers: {'content-type' : 'application/x-www-form-urlencoded'},
+        url:     url,
+        form:   {
+            access_token:self.token,
+            message:mess.toString()
+        }
+
+        // on comple comment
+    }, function (error, req, body) {
+
+        if(error)
+        {
+            console.log(error);
+            comment(post_id,mess,id);
+
+            return;
+        }
+
+
+        body = JSON.parse(body);
+
+        if (body.error)
+        {
+            console.log(body);
+            io.sockets.emit('err', self.id);
+
+            return;
+        }
+
+        self.cn++;
+        io.sockets.emit('set', JSON.stringify({
+            id:self.id,
+            new:self.cn
+        }));
+        //console.log(body);
+        console.log('commit success');
+        if (self.cn < self.cm) self.check();
+        else {
+            self.stop();
+            io.sockets.emit('stop', id);
+        }
+        save();
+
+    });
+
+
+
+}
+
+function save() {
+    var file =  '../User.json';
+    console.log(list);
+    fs.writeFile(file,JSON.stringify(list),function (err,data) {
+        if (err) console.log(err);
+    });
+}
